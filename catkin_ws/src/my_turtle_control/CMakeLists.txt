@@ -149,7 +149,10 @@ include_directories(
 #   ${catkin_LIBRARIES}
 # )
 add_executable(pub_node src/pub_node.cpp)
+add_executable(sub_node src/sub_node.cpp)
+
 target_link_libraries(pub_node ${catkin_LIBRARIES})
+target_link_libraries(sub_node ${catkin_LIBRARIES})
 
 #############
 ## Install ##
