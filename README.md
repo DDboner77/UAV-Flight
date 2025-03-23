@@ -13,7 +13,7 @@
 
 ---
 
-**飞控系统**: [凌霄开源飞控v2.1](https://lingxiao-drone.org) [![开源协议](https://img.shields.io/badge/license-GPLv3-blue)]()
+**飞控系统**: [凌霄开源飞控v2.1](https://www.anotc.com/wiki/%E5%8C%BF%E5%90%8D%E4%BA%A7%E5%93%81%E8%B5%84%E6%96%99/%E5%8C%BF%E5%90%8D%E5%85%89%E6%B5%81v3.4) [![开源协议](https://img.shields.io/badge/license-GPLv3-blue)]()
 
 ## 📝 项目进度
 ### 2025-3-24
