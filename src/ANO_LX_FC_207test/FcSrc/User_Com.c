@@ -187,6 +187,24 @@ void UserCom_DataAnl(u8* data_buf, u8 data_len) {
             UserCom_CalcAck(0x01, p_data, 7);  // 重要的无反馈操作,需要ACK
           }
           break;
+
+        case 0x07:
+          FC_Unlock();
+          break;
+        
+        case 0x08:
+          LX_Change_Mode(3);
+          break;
+
+        case 0x09:
+          OneKey_Takeoff(50);
+          break;
+        case 0x0A:
+					OneKey_Land();
+					break;
+				case 0x0B:
+          FC_Lock();
+          break;
       }
       break;
     case 0x02:  // 转发到IMU, 命令格式应遵循匿名通信协议, 此命令需要返回ACK
@@ -233,6 +251,8 @@ void UserCom_Task(float dT_s) {
     if (user_heartbeat_cnt * dT_s >= USER_HEARTBEAT_TIMEOUT_S) {
       user_connected = 0;
       LxStringSend(LOG_COLOR_RED, "WARN: user disconnected");
+			LxPrintf("user_heartbeat_cnt: %d",user_heartbeat_cnt);
+			
       if (fc_sta.unlock_sta == 1) {  //如果是解锁状态，则采取安全措施
         // OneKey_Land(); //降落
         OneKey_Stable();  //恢复悬停
