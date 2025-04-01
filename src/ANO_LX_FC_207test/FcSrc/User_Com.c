@@ -190,20 +190,25 @@ void UserCom_DataAnl(u8* data_buf, u8 data_len) {
 
         case 0x07:
           FC_Unlock();
+          LxStringSend(LOG_COLOR_GREEN, "DEBUG: FL Unlock");
           break;
         
         case 0x08:
-          LX_Change_Mode(3);
+          LX_Change_Mode(2);
+          
           break;
 
         case 0x09:
           OneKey_Takeoff(50);
+          LxStringSend(LOG_COLOR_GREEN, "DEBUG: FL Takeoff");
           break;
         case 0x0A:
 					OneKey_Land();
+          LxStringSend(LOG_COLOR_GREEN, "DEBUG: FL Land");
 					break;
 				case 0x0B:
           FC_Lock();
+          LxStringSend(LOG_COLOR_GREEN, "DEBUG: FL Lock");
           break;
       }
       break;
@@ -251,8 +256,6 @@ void UserCom_Task(float dT_s) {
     if (user_heartbeat_cnt * dT_s >= USER_HEARTBEAT_TIMEOUT_S) {
       user_connected = 0;
       LxStringSend(LOG_COLOR_RED, "WARN: user disconnected");
-			LxPrintf("user_heartbeat_cnt: %d",user_heartbeat_cnt);
-			
       if (fc_sta.unlock_sta == 1) {  //如果是解锁状态，则采取安全措施
         // OneKey_Land(); //降落
         OneKey_Stable();  //恢复悬停
