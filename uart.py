@@ -112,6 +112,8 @@ while True:
         print("Raw received:", data.hex())
         last_receive_time = time.time()
         
+        print(f"接收到数据: {' '.join([hex(b) for b in data])}")
+
         # 3. 尝试解析完整数据包（40字节）
         while len(recv_buffer) >= 40:
             # 查找包头0xAA 0x55
@@ -130,6 +132,7 @@ while True:
                 break
             # 提取数据包
             packet = recv_buffer[start:start+40]
+
             parsed = parse_data_packet(packet)
             if parsed:
                 print("解析成功:")

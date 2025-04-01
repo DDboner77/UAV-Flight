@@ -225,8 +225,8 @@ void UserCom_DataAnl(u8* data_buf, u8 data_len) {
         }
         CMD_Send(0xFF, &dt.cmd_send);
         user_ack.WTS = 1;  // 触发ACK
-        // LxPrintf("DBG: to imu: 0x%02X 0x%02X 0x%02X", dt.cmd_send.CID,
-        //          dt.cmd_send.CMD[0], dt.cmd_send.CMD[1]);
+        LxPrintf("DBG: to imu: 0x%02X 0x%02X 0x%02X", dt.cmd_send.CID,
+                 dt.cmd_send.CMD[0], dt.cmd_send.CMD[1]);
       } else {
         LxStringSend(LOG_COLOR_RED, "ERR: cmd to imu dropped for wait_ck");
       }
