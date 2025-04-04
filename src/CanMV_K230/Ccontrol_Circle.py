@@ -220,7 +220,7 @@ def main():
                 # 综合停止条件
                 if abs(dx) <= deadzone and abs(dy) <= deadzone:
                     print("★ 目标已居中 ★")
-                    fc.send_realtime_control_data(vel_x= move_speed, vel_y= 0, vel_z=0, yaw=0, need_ack=False)
+                    fc.send_realtime_control_data(vel_x= 0, vel_y= 0, vel_z=0, yaw=0, need_ack=False)
                     time.sleep(1)
                     fc.set_flight_mode(3)  # 切换到程控模式
                     time.sleep(1)
@@ -230,7 +230,7 @@ def main():
                     
             else:
                 print("未检测到圆形，停止移动")
-                fc.send_realtime_control_data(vel_x= 0, vel_y= 0, vel_z=0, yaw=0, need_ack=False)
+                fc.send_realtime_control_data(vel_x= move_speed, vel_y= 0, vel_z=0, yaw=0, need_ack=False)
                 #time.sleep(1)  # 等待1秒
             # ========== 运动控制结束 ==========
             print("------圆形统计开始------")
