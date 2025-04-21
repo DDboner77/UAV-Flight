@@ -22,11 +22,8 @@ class  Detector:
         # 加载模型
         print(f"[INFO] Loading engine: {engine_path}")
         self.model = YOLO(engine_path, task='detect')
-        # print("[INFO] Warming up...")
-        # # 矩阵或图片路径都可
-        # _ = self.model(cv2.imread('https://ultralytics.com/images/bus.jpg') or 
-        #                cv2.UMat(1,1,cv2.CV_8U), verbose=False)
-        # print("[INFO] Warmup done.")
+        self.names = getattr(self.model, 'names', None) or getattr(self.model.model, 'names', None)
+
 
     def detect(self, frame):
         """

@@ -35,5 +35,5 @@ jetson user:xuzi
 password: 207207
 ssh :xuzi-desktop.local
 
-连接我设置的WIFI：robot-111，jetson的ip是192.168.0.178，使用mobaxtern或者putty可以直接命令行控制它，
+连接我设置的WIFI：robot-111，jetson的ip是动态的，最好查询一下再用ip ssh，使用mobaxtern或者putty可以直接命令行控制它，
 如果需要远程桌面控制，执行`/usr/lib/vino/vino-server`就可以在vnc中直接远程桌面，不过很卡

@@ -2,6 +2,7 @@ import os
 import sys
 import argparse # 添加 argparse
 from datetime import datetime # 添加 datetime
+import threading
 
 ####### 清理日志 #######
 # path = os.path.dirname(os.path.abspath(__file__))
@@ -18,6 +19,7 @@ import numpy as np
 from configManager import ConfigManager
 from FlightController import FC_Client, FC_Controller, logger
 from FlightController.Components import LD_Radar, Map_360, Point_2D
+from FlightController.Camera import My_Camera
 # from hmi import HMI
 
 def self_reboot():
@@ -34,6 +36,9 @@ parser.add_argument('--output-dir', '-o', type=str, default='output_videos',
 args = parser.parse_args()
 
 args.save_video = True # 强制保存视频
+
+
+
 
 # 初始化本地飞控控制层，进行串口连接
 try:
@@ -53,44 +58,22 @@ fc.set_rgb_led(0, 0, 0)
 fc.set_action_log(False)
 
 
-# USB摄像头初始化
+# 初始化摄像头
 try:
-    cam = cv2.VideoCapture(0)
-    if not cam.isOpened():
-        cam.open(0)
-    assert cam.isOpened()
+    cam_manager = My_Camera(
+        index=0,
+        save_video=args.save_video,
+        output_dir=args.output_dir,
+        fps=60
+    )
+    # 设置飞控引用
+    cam_manager.set_flight_controller(fc)
+    cam_manager.start()
+    logger.info("[MANAGER] Camera Manager Initialized")
+except Exception as e:
+    logger.error(f"[MANAGER] Camera Manager Initialization Failed: {e}")
 
-    # 如果需要保存视频，则初始化 VideoWriter
-    if args.save_video:
-        # 获取摄像头的实际帧率和尺寸
-        fps = cam.get(cv2.CAP_PROP_FPS)
-        if fps == 0: # 如果获取失败，使用默认值
-             fps = 30
-        width = int(cam.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        # 创建输出目录
-        os.makedirs(args.output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        video_path = os.path.join(args.output_dir, f"mission_{timestamp}.avi")
-        fourcc = cv2.VideoWriter_fourcc(*'MJPG') 
-        video_writer = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
-
-        if not video_writer.isOpened():
-            logger.error(f"[MANAGER] Failed to create video writer at {video_path}")
-            video_writer = None # 创建失败则不写入
-        else:
-            logger.info(f"[MANAGER] Recording video to {video_path}")
-except:
-    logger.warning("[MANAGER] Camera Opening Failed")
-    while True:
-        fc.set_rgb_led(255, 255, 0)
-        sleep(0.5)
-        fc.set_rgb_led(0, 0, 0)
-        sleep(0.5)
-        if fc.event.key_short.is_set():
-            fc.quit()
-            self_reboot()
 
 
 
@@ -172,7 +155,10 @@ try:
     # 目前只有一个任务 Mission_QR_Circle，其他的还在测试
     if target_mission == 1:
         from Test.mission_qr_circle import Mission
-        mission = Mission(fc, cam, video_writer)
+
+        mission = Mission(fc, cam_manager)
+        # 将任务对象传递给摄像头管理器
+        cam_manager.set_mission(mission)
 
     logger.info("[MANAGER] Calling Mission")
 
@@ -184,28 +170,43 @@ except Exception as e:
 
     logger.error(f"[MANAGER] Mission Failed: {traceback.format_exc()}")
 finally:
+    logger.info("[MANAGER] Entering final cleanup...")
     if mission is not None:
+        logger.info("[MANAGER] Stopping mission object...")
         mission.stop()
-    if fc.state.unlock.value:
+
+
+
+    if fc and fc.connected and fc.state.unlock.value: # 检查 fc 是否有效
         logger.warning("[MANAGER] Auto Landing")
-        fc.set_flight_mode(fc.PROGRAM_MODE)
-        fc.stablize()
-        fc.land()
-        sleep(2)
-        fc.lock()
+        try:
+            fc.set_flight_mode(fc.HOLD_POS_MODE)#先停下飞机
+            fc.stablize()
+            fc.land()
+            sleep(2) # 等待降落指令发出
+            fc.lock()
+            logger.info("[MANAGER] Auto Landing and Locking")
+        except Exception as land_err:
+            logger.error(f"[MANAGER] Error during auto landing/locking: {land_err}")
+
+
+    cam_manager.stop()
+
 
 ############################## 结束任务 ##############################
 print(f"Mission{target_mission} finished")
-fc.set_action_log(False)
-set_buzzer(True)
-sleep(0.5)
-set_buzzer(False)
-fc.quit()
-cam.release()
-if video_writer :
-    video_writer.release()
-    logger.info(f"[MANAGER] Video saved to {video_path}")
+if fc and fc.connected: # 检查 fc 是否有效
+    fc.set_action_log(False)
+    set_buzzer(True)
+    sleep(0.5)
+    set_buzzer(False)
+    fc.quit()
+
+
 
 ########################## 重启自身 #############################
 # if not _testing:
 #     self_reboot()
+
+
+

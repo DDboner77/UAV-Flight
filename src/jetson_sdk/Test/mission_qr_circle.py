@@ -57,24 +57,26 @@ def detect_circle(image):
 class Mission:
 
 
-    def __init__(self, fc, cam, video_writer):
+    def __init__(self, fc, Cam):
         """
         初始化任务。
         :param fc: FlightController 实例
-        :param cam: Camera (cv2.VideoCapture) 实例
-        :param video_writer: VideoWriter 实例或 None
+        :param cam: My_Camera  实例
         """
         self.fc = fc
-        self.cam = cam
+        self.cam = Cam.cam 
         self.running = False
-        if video_writer :
-            self.video_writer = video_writer # 视频写入器实例
+
+
+        # 存储检测结果的属性
+        self.last_bbox = None
+        self.last_class = None
 
     ################################任务参数####################################
-        self.take_off_alt = 100 # cm
+        self.take_off_alt = 60 # cm
 
         self.forward_dis = 20 # cm
-        self.forward_speed = 20 # cm/s
+        self.forward_speed = 10 # cm/s
         self.forward_angle = 0 # 
 
 
@@ -84,7 +86,7 @@ class Mission:
 
 
 
-        # --- 初始化 YOLOv5 Detector ---
+        # --- 初始化 YOLO Detector ---
         self.detector = None
         try:
             # 假设 yolov5_runtime.py, best.onnx, category.names 都在 FlightController/Solutions/yolo_runtime/ 目录下
@@ -93,8 +95,8 @@ class Mission:
             # self.detector.threshold = 0.6
             # self.detector.iou_thres = 0.5
             logger.info("[Mission QR Circle] YOLOv5 Detector initialized successfully.")
-            logger.info(f"[Mission QR Circle] Detector using model: {self.detector.weights}")
-            logger.info(f"[Mission QR Circle] Detector class names: {self.detector.names}")
+            # logger.info(f"[Mission QR Circle] Detector using model: {self.detector.weights}")
+            # logger.info(f"[Mission QR Circle] Detector class names: {self.detector.names}")
         except Exception as e:
             logger.error(f"[Mission QR Circle] Failed to initialize YOLOv5 Detector: {e}")
             logger.error(traceback.format_exc())
@@ -104,7 +106,7 @@ class Mission:
 
     def _detect_object(self, image, target_class):
         """
-        使用 YOLOv11 检测图像中指定类别的对象。
+        使用 YOLO 检测图像中指定类别的对象。
         :param image: 输入图像 (NumPy array)
         :param target_class: 目标类别的名称 (字符串)
         :return: 如果检测到目标类的第一个实例，返回其中心坐标 (x, y)；否则返回 None。
@@ -129,20 +131,19 @@ class Mission:
                 return None
 
             for bbox, conf, cid in zip(boxes, confidences, class_ids):
-                # 置信度过滤
                 if conf < self.detector.conf:
                     continue
-                # 类别ID 验证
-                if cid < 0 or cid >= len(self.detector.names):
+                # 直接用 result.names 而非 self.detector.names
+                names = getattr(result, 'names', None) or self.detector.names
+                if names is None or cid < 0 or cid >= len(names):
                     continue
-                class_name = self.detector.names[cid]
-                logger.debug(f"[Mission] YOLOv11 detected: {class_name} (conf: {conf:.2f})")
-                # 匹配目标类别
+                class_name = names[cid]
                 if class_name == target_class:
                     x1, y1, x2, y2 = bbox.astype(int)
-                    cx = (x1 + x2) // 2
-                    cy = (y1 + y2) // 2
-                    logger.info(f"[Mission] Found target '{target_class}' at ({cx}, {cy}) with confidence {conf:.2f}")
+                    self.last_bbox = (x1, y1, x2, y2)
+                    self.last_class = class_name
+                    cx, cy = (x1+x2)//2, (y1+y2)//2
+                    logger.info(f"[Mission] Found '{target_class}' at ({cx},{cy}) conf={conf:.2f}")
                     return (cx, cy)
 
             logger.debug(f"[Mission] Target '{target_class}' not found among detected objects.")
@@ -155,8 +156,7 @@ class Mission:
 
 
     def _read_frame(self):
-        """从摄像头读取一帧图像,并写入视频文件"""
-        # ... existing _read_frame code ...
+        """从摄像头读取一帧图像""" # <--- 更新文档字符串
         if not self.cam or not self.cam.isOpened():
              logger.error("[Mission QR Circle] Camera is not available.")
              return None
@@ -165,9 +165,6 @@ class Mission:
             logger.warning("[Mission QR Circle] Failed to read frame from camera")
             return None
 
-        if self.video_writer is not None:
-            # 将当前帧写入视频文件
-            self.video_writer.write(frame)
         return frame
 
 
@@ -204,7 +201,7 @@ class Mission:
                 logger.debug("[Mission QR Circle] QR not found, moving forward slowly")
                 # 检查飞控是否连接且无人机是否解锁
                 if self.fc and self.fc.connected and self.fc.state.unlock.value:
-                    self.fc.move(self.forward_dis,self.forward_speed,self.forward_angle) # 调整速度
+                    self.fc.horizontal_move(self.forward_dis,self.forward_speed,self.forward_angle) # 调整速度
                     sleep(0.2) # 移动一小段时间再检测
                 else:
                     logger.warning("[Mission QR Circle] Cannot move forward, FC not ready or drone locked.")
@@ -220,41 +217,39 @@ class Mission:
         return qr_data
 
 
-    def _fly_direction(self, direction, distance_m=3.0, speed=0.5):
+    def _fly_direction(self, direction, distance_m=1, speed=0.2):
         """
         向指定方向飞行一定距离。
-        :param direction: 方向 ("left", "right", "forward", "backward")
-        :param distance_m: 飞行距离（米）
-        :param speed: 飞行速度（米/秒）
+        :param direction: "left","right","forward","backward"
+        :param distance_m: 米
+        :param speed: 米/秒
         """
-        # ... existing _fly_direction code ...
         logger.info(f"[Mission QR Circle] Flying {direction} for {distance_m}m at {speed}m/s")
-        duration = distance_m / speed if speed > 0 else 0
-
-        if duration <= 0:
-             logger.warning(f"[Mission QR Circle] Invalid distance or speed for movement.")
-             return
-
-        move_params = {'duration': duration}
-        if direction == "left":
-            move_params['left'] = speed
-        elif direction == "right":
-            move_params['right'] = speed
-        elif direction == "forward":
-             move_params['forward'] = speed
-        elif direction == "backward":
-             move_params['backward'] = speed
-        else:
+        # 参数转换：m -> cm
+        distance_cm = int(distance_m * 100)
+        speed_cm_s = int(speed * 100)
+        # 方向映射（机头0度，顺时针增）
+        angle_map = {
+            "forward": 0,
+            "right": 90,
+            "backward": 180,
+            "left": 270,
+        }
+        if direction not in angle_map:
             logger.warning(f"[Mission QR Circle] Unknown direction: {direction}. Not moving.")
             return
-
-        if self.fc and self.fc.connected and self.fc.state.unlock.value:
-            self.fc.move(**move_params)
-            self.fc.stablize() # 确保移动结束后稳定悬停
-            logger.info(f"[Mission QR Circle] Finished flying {direction}.")
-            sleep(1) # 稳定悬停时间
-        else:
-            logger.warning(f"[Mission QR Circle] Cannot fly {direction}, FC not ready or drone locked.")
+        deg = angle_map[direction]
+        # 切到程控模式
+        self.fc.set_flight_mode(self.fc.PROGRAM_MODE)
+        # 水平移动
+        self.fc.horizontal_move(distance_cm, speed_cm_s, deg)
+        # 等待指令发送完毕
+        while not self.fc.last_command_done:
+            time.sleep(0.1)
+        # 稳定悬停
+        self.fc.stablize()
+        logger.info(f"[Mission QR Circle] Finished flying {direction}.")
+        time.sleep(1)  # 保持悬停
 
 
     def _find_target_and_circle(self, target_class, search_timeout=60):
@@ -294,7 +289,29 @@ class Mission:
                 if circle_info is None: # 首次检测到
                     logger.info(f"[Mission QR Circle] Circle detected.")
                 circle_info = current_circle_info
-                # 可选：根据圆形位置调整无人机姿态，使其居中
+
+                # 微调无人机位置，让圆心靠近画面中心（X轴平移）
+                frame_w = frame.shape[1]
+                cx, cy, radius = circle_info
+                tol = frame_w * 0.05  # 5% 误差容限
+                offset = cx - frame_w / 2
+                if abs(offset) > tol:
+                    # 将像素偏移转换为侧向速度（cm/s）
+                    # 这里选用固定侧移速度 20 cm/s
+                    lateral_speed = 10 if offset > 0 else -10
+                    logger.info(
+                        f"[Mission QR Circle] Aligning laterally: offset={offset:.1f}px, "
+                        f"vel_y={lateral_speed}cm/s"
+                    )
+                    # vel_x=0, vel_y=lateral_speed, vel_z=0, yaw=0
+                    self.fc.send_realtime_control_data(0, lateral_speed, 0, yaw=0)
+                    sleep(0.5)
+                    self.fc.stablize()
+                    continue  # 获取新帧并再次调整
+                else:
+                    logger.info("[Mission QR Circle] Circle centered, proceeding to Step 6")
+                    self.fc.stablize()
+                    return circle_info
 
             # 3. 检查是否都找到
             if target_detected and circle_info:
@@ -303,18 +320,23 @@ class Mission:
                     self.fc.stablize() # 停止搜索动作
                 return circle_info
 
-            # 4. 如果没都找到，执行搜索模式 (例如缓慢旋转)
+           # 4. 如果没都找到，执行搜索模式 (例如缓慢旋转)
             if not search_pattern_active:
-                 logger.info("[Mission QR Circle] Target or circle not found, starting search pattern (slow yaw)...")
-                 if self.fc and self.fc.connected and self.fc.state.unlock.value:
-                     self.fc.move(yaw_rate=15) # 开始缓慢向右转动 (15 deg/s)
-                     search_pattern_active = True
-                 else:
-                     logger.warning("[Mission QR Circle] Cannot start search pattern, FC not ready or drone locked.")
-                     sleep(0.5)
+                logger.info("[Mission QR Circle] Target or circle not found, starting search pattern (slow yaw)...")
+                if self.fc and self.fc.connected and self.fc.state.unlock.value:
+                    # 切到 定点模式 并发送实时控制帧开始偏航
+                    self.fc.set_flight_mode(self.fc.HOLD_POS_MODE)
+                    # (vel_x=0, vel_y=0, vel_z=0, yaw=15 deg/s)
+                    self.fc.send_realtime_control_data(0, 0, 0, yaw=15)
+                    search_pattern_active = True
+                else:
+                    logger.warning("[Mission QR Circle] Cannot start search pattern, FC not ready or drone locked.")
+                    sleep(0.5)
             else:
-                 # 保持旋转或其他搜索动作
-                 sleep(0.1) # 避免过于频繁地发送命令或检查
+                # 持续发送实时控制命令，保持偏航
+                if self.fc and self.fc.connected and self.fc.state.unlock.value:
+                    self.fc.send_realtime_control_data(0, 0, 0, yaw=15)
+                sleep(0.5)  # 避免过于频繁地发送命令
 
         # 超时或任务停止
         if self.fc and self.fc.connected:
@@ -325,36 +347,36 @@ class Mission:
 
     def _circle_around_target(self, circle_info, circle_radius_m=1.0):
         """
-        环绕检测到的圆形靶标飞行一圈。
-        这是一个简化的实现，仅执行360度偏航旋转。
-        真实的环绕飞行需要更复杂的控制逻辑（视觉伺服或GPS航点）。
-        :param circle_info: 圆形信息 (x, y, radius_px) - 当前未使用，未来可用于视觉伺服
-        :param circle_radius_m: 环绕飞行的半径（米） - 当前未使用
+        环绕检测到的圆形靶标飞行一圈：通过定点模式下的实时控制帧实现持续偏航。
+        :param circle_info: (x, y, radius_px)
+        :param circle_radius_m: 环绕半径（未用）
         """
-        # ... existing _circle_around_target code ...
-        logger.info(f"[Mission QR Circle] Performing simplified circle maneuver (360 degree yaw turn).")
 
-        yaw_rate = 30 # degrees per second
-        circle_duration = 360.0 / yaw_rate
-        logger.info(f"[Mission QR Circle] Starting yaw turn: rate={yaw_rate} deg/s, duration={circle_duration:.1f}s")
+        yaw_rate = 30  # deg/s
+        duration = 360.0 / yaw_rate  # 完成360°需要的秒数
 
+
+        logger.info(f"[Mission QR Circle] Performing circle maneuver: yaw={yaw_rate}deg/s")
+
+        # 检查飞控可用
         if not (self.fc and self.fc.connected and self.fc.state.unlock.value):
             logger.warning("[Mission QR Circle] Cannot perform circle maneuver, FC not ready or drone locked.")
             return False
 
-        self.fc.move(yaw_rate=yaw_rate) # 开始旋转
-        start_time = time.time()
-        while self.running and (time.time() - start_time) < circle_duration:
-            sleep(0.1)
-            # 检查是否意外停止
-            if not self.fc.state.unlock.value:
-                logger.warning("[Mission QR Circle] Drone became locked during circling maneuver.")
-                self.fc.stablize() # 尝试停止旋转
-                return False
+        # 切到定点模式
+        self.fc.set_flight_mode(self.fc.HOLD_POS_MODE)
+        time_started = time.time()
 
-        self.fc.stablize() # 停止旋转
+        # 持续发送实时控制帧实现偏航
+        while self.running and (time.time() - time_started) < duration:
+            # vel_x=0, vel_y=0, vel_z=0, yaw=yaw_rate deg/s
+            self.fc.send_realtime_control_data(0, 0, 0, yaw=yaw_rate)
+            sleep(0.5)  # 保证发送频率>1Hz
+
+        # 停止偏航并悬停
+        self.fc.stablize()
         logger.info("[Mission QR Circle] Circling maneuver complete.")
-        sleep(1) # 稳定时间
+        sleep(1)
         return True
 
 
@@ -375,7 +397,7 @@ class Mission:
         logger.info("[Mission QR Circle] Initiating landing sequence.")
         self.fc.land()
         logger.info("[Mission QR Circle] Waiting for landing and lock...")
-        ret = self.fc.wait_for_lock(timeout=90)
+        ret = self.fc.wait_for_lock(3)
         if not ret:
             logger.warning("[Mission QR Circle] Drone did not lock automatically after landing command. Forcing lock.")
             try:
@@ -420,6 +442,7 @@ class Mission:
             # 假设 take_off 需要厘米
             self.fc.take_off(self.take_off_alt ) 
             logger.info("[Mission QR Circle] Waiting for take_off altitude...")
+            sleep(3) 
             if not self.running:
                  logger.error("[Mission QR Circle] take_off failed, timed out, or mission stopped.")
                  raise RuntimeError("take_off failed")
@@ -458,7 +481,7 @@ class Mission:
 
             # --- 5. 搜索目标和圆形靶标 ---
             logger.info(f"[Mission QR Circle] Step 5: Find Target ('{landing_trigger_class}') and Circle")
-            circle_details = self._find_target_and_circle(landing_trigger_class)
+            circle_details = self._find_target_and_circle(landing_trigger_class,10)
             if not circle_details or not self.running:
                  raise RuntimeError("Failed to find target/circle or mission stopped.")
 
@@ -493,7 +516,7 @@ class Mission:
                     logger.warning("[Mission QR Circle] Mission failed or was interrupted while flying. Attempting emergency land.")
                     try:
                         self.fc.land()
-                        self.fc.wait_for_lock(30) # 给紧急降落一些时间
+                        self.fc.wait_for_lock(3) # 等待降落完成
                         if self.fc.state.unlock.value:
                              logger.warning("[Mission QR Circle] Forcing lock after emergency land attempt.")
                              self.fc.lock()
