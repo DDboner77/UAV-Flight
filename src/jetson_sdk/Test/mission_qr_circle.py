@@ -8,7 +8,6 @@ from FlightController.Solutions.yolo_runtime.yolo_runtime import Detector
 import traceback # 用于打印详细错误
 
 from pyzbar import pyzbar
-PYZBAR_AVAILABLE = True
 
 
 # --- 移除旧的占位符函数 ---
@@ -73,10 +72,10 @@ class Mission:
         self.last_class = None
 
     ################################任务参数####################################
-        self.take_off_alt = 60 # cm
+        self.take_off_alt = 40 # cm
 
         self.forward_dis = 20 # cm
-        self.forward_speed = 10 # cm/s
+        self.forward_speed = 15 # cm/s
         self.forward_angle = 0 # 
 
 
@@ -174,10 +173,7 @@ class Mission:
         :param search_timeout: 搜索超时时间（秒）
         :return: 解码后的二维码数据字符串，如果未找到或超时则返回 None。
         """
-        # ... existing _find_qr_code code ...
-        if not PYZBAR_AVAILABLE:
-            logger.error("[Mission QR Circle] Cannot search for QR code, pyzbar is not available.")
-            return None
+
 
         logger.info("[Mission QR Circle] Searching for QR code...")
         start_time = time.time()
@@ -217,7 +213,7 @@ class Mission:
         return qr_data
 
 
-    def _fly_direction(self, direction, distance_m=1, speed=0.2):
+    def _fly_direction(self, direction, distance_m=0.5, speed=0.2):
         """
         向指定方向飞行一定距离。
         :param direction: "left","right","forward","backward"

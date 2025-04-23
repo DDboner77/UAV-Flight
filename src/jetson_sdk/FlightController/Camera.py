@@ -139,23 +139,22 @@ class My_Camera:
         # 2. 添加任务相关信息
         if self.mission:
             # 绘制检测框
-            bbox = getattr(self.mission, 'last_bbox', None)
-            if bbox:
-                try:
-                    x1, y1, x2, y2 = bbox
-                    # 矩形框
-                    cv2.rectangle(result, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                    # 目标中心点
-                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                    cv2.circle(result, (cx, cy), 5, (255, 0, 0), -1)
-                    
-                    # 如果有目标类别名称，显示它
-                    class_name = getattr(self.mission, 'last_class', None)
-                    if class_name:
-                        cv2.putText(result, class_name, (x1, y1 - 10),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-                except:
-                    pass  # 忽略无效的bbox格式
+            results = getattr(self.mission, 'last_results', None)
+            detector = getattr(self.mission, 'detector', None)
+            if results and results.boxes and detector and detector.names:
+                for box in results.boxes:
+                    cls_id = int(box.cls)
+                    if cls_id < 0 or cls_id >= len(detector.names):
+                        continue
+                    label = detector.names[cls_id]
+                    conf  = box.conf.item()
+                    x1,y1,x2,y2 = box.xyxy[0].cpu().numpy().astype(int)
+                    # 替换标签
+                    display = 'apple' if label=='orange' else label
+                    # 绘制
+                    cv2.rectangle(result, (x1,y1),(x2,y2),(0,0,255),3)
+                    cv2.putText(result, f'{display} {conf:.2f}', (x1,y1-5),
+                                cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,0,255),2)
         
             circle = getattr(self.mission, 'last_circle_info', None)
             if circle:
@@ -172,6 +171,16 @@ class My_Camera:
         
         return result
     
+    def read_original(self):  
+        frame = None
+
+        ret,frame = self.cam.read()
+        if not ret:
+            return None
+        
+        return frame
+
+
     def read(self):
         """
         读取最新的一帧（带有叠加信息）

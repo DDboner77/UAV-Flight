@@ -142,7 +142,7 @@ logger.info("[MANAGER] Selecting mission...")
 
 
 # 选择任务
-target_mission = 1
+target_mission = 3
 
 
 
@@ -157,8 +157,22 @@ try:
         from Test.mission_qr_circle import Mission
 
         mission = Mission(fc, cam_manager)
-        # 将任务对象传递给摄像头管理器
-        cam_manager.set_mission(mission)
+        
+
+    # 一个测试yolo任务号
+    elif target_mission == 2:
+       # from  yolo_test import Mission
+        from Test.mission_qr_circle_extra import Mission
+        mission = Mission(fc, cam_manager)
+
+    # 测试go_up任务号
+    elif target_mission == 3:
+        from go_up_test import Mission
+        mission = Mission(fc, cam_manager)
+
+
+
+    cam_manager.set_mission(mission)
 
     logger.info("[MANAGER] Calling Mission")
 
