@@ -142,7 +142,7 @@ logger.info("[MANAGER] Selecting mission...")
 
 
 # 选择任务
-target_mission = 3
+target_mission = 4
 
 
 
@@ -168,6 +168,10 @@ try:
     # 测试go_up任务号
     elif target_mission == 3:
         from go_up_test import Mission
+        mission = Mission(fc, cam_manager)
+
+    elif target_mission == 4:
+        from Test.mission_apriltag import Mission
         mission = Mission(fc, cam_manager)
 
 

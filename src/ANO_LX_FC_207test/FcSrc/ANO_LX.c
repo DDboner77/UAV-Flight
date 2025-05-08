@@ -236,6 +236,8 @@ static inline void ESC_Output(u8 unlocked) {
       pwm[i] = LIMIT(pwm[i], 0, 10000);
     }
   }
+  //舵机信号输出不受锁定影响
+  pwm[4] = user_pwm[0]; // 保证舵机信号持续
   //给底层PWM驱动输出信号
   DrvMotorPWMSet(pwm);
 }
